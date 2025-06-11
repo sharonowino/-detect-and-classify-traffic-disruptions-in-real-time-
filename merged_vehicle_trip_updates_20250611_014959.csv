@@ -1,0 +1,1 @@
+trip_id,start_time_vehicle,start_date_vehicle,schedule_relationship,route_id,direction_id,latitude,longitude,current_stop_sequence,current_status,timestamp,stop_id,vehicle_label,start_time_trip,start_date_trip,arrival_delay,departure_delay,arrival_delay_abs,departure_delay_abs
