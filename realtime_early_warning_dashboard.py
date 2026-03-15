@@ -18,6 +18,8 @@ import sys
 import json
 import pickle
 import numpy as np
+import requests
+import streamlit as st
 import pandas as pd
 import streamlit as st
 import plotly.express as px
@@ -1141,3 +1143,10 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+response = requests.get("http://localhost:8000/predictions")
+
+data = pd.DataFrame(response.json())
+
+st.dataframe(data)
+
