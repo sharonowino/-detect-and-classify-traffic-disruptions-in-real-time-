@@ -879,6 +879,8 @@ def load_service_alerts(strategy: str = None) -> tuple:
             "  Fix the error above and re-run."
         )
     
+    return alerts_df, parsed_alerts_feeds, alerts_source
+    
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LEGACY CODE — Kept for backward compatibility
