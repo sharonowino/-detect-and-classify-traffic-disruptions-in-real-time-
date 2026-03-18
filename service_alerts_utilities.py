@@ -840,8 +840,11 @@ def load_service_alerts(strategy: str = None) -> tuple:
         print("No strategy specified, defaulting to 'database' strategy.")
         print("To use another strategy, pass: strategy='parquet' or strategy='gtfs_loader'")
         strategy = 'database'
-    elif strategy not in VALID_STRATEGIES.values():
-        raise ValueError(f"Invalid strategy: {strategy}. Must be one of: {list(VALID_STRATEGIES.values())}")
+    
+    # Validate strategy
+    valid_strategies = ['database', 'parquet', 'gtfs_loader']
+    if strategy not in valid_strategies:
+        raise ValueError(f"Invalid strategy: {strategy}. Must be one of: {valid_strategies}")
     
     # Route to appropriate loader
     if strategy == "database":
