@@ -579,19 +579,26 @@ def load_from_parquet() -> tuple:
     alerts_df = None
     
     # Check multiple possible locations for the alerts directory
-    # Note: Due to Git LFS, parquet files may be in different locations
-    # Updated to include Windows and local paths
+    # Note: Parquet files can be in:
+    #   - Colab: /content/-detect-and-classify-traffic-disruptions-in-real-time-/alerts
+    #   - GitHub: https://github.com/sharonowino/-detect-and-classify-traffic-disruptions-in-real-time-/tree/main/alert
     possible_paths = [
+        # Colab paths (alerts folder)
         '/content/-detect-and-classify-traffic-disruptions-in-real-time-/alerts',
+        '/content/-detect-and-classify-traffic-disruptions-in-real-time-/alert',
+        # Colab paths (other folders)
         '/content/-detect-and-classify-traffic-disruptions-in-real-time-/DB_data',
         '/content/-detect-and-classify-traffic-disruptions-in-real-time-/nlp_data',
         '/content/-detect-and-classify-traffic-disruptions-in-real-time-/data',
-        'alerts',  # local directory
-        './alerts',
         '/content/alerts',
+        '/content/alert',
         '/content/DB_data',
-        './DB_data',
-        # Windows and local paths
+        # Local paths
+        'alerts',
+        'alert',
+        './alerts',
+        './alert',
+        # Windows paths
         'data',
         './data',
         '.\\data',
@@ -627,7 +634,8 @@ def load_from_parquet() -> tuple:
 
     # Now search for parquet files in the found directory
     # Look for any parquet files that might contain service alerts
-    parquet_patterns = ['service_alerts', 'alerts', 'gtfs_rt']  # Try different patterns
+    # GitHub uses 'alert' (singular), local may use 'alerts' (plural)
+    parquet_patterns = ['service_alerts', 'alerts', 'alert', 'gtfs_rt']  # Try different patterns
     _parquet_files = []
     
     for pattern in parquet_patterns:
