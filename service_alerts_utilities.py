@@ -262,119 +262,6 @@ class GTFSFeedLoader:
         return result
 
 
-
-# SECTION 2: FEED PARSING  (GTFSFeedLoader retained for parquet-feed parsing;
-#            RepositoryManager removed — repo scanning no longer needed)
-
-
-class GTFSFeedLoader:
-    """Load and parse GTFS-RT feeds."""
-
-    VALID_GTFS_RT_VERSIONS = {'1.0', '2.0'}
-    MAX_ALERT_AGE_SECONDS  = 600
-
-    @staticmethod
-    def load_gtfs_feed(parquet_path):
-        try:
-            from google.transit import gtfs_realtime_pb2
-            df = pd.read_parquet(parquet_path)
-            if df.empty or 'feed_data' not in df.columns:
-                return None
-            feed = gtfs_realtime_pb2.FeedMessage()
-            feed.ParseFromString(df['feed_data'].iloc[0])
-            version = getattr(feed.header, 'gtfs_realtime_version', None)
-            if version and version not in GTFSFeedLoader.VALID_GTFS_RT_VERSIONS:
-                print(f"  Warning: unexpected gtfs_realtime_version='{version}'")
-            feed_ts = getattr(feed.header, 'timestamp', None)
-            if feed_ts:
-                age = time.time() - feed_ts
-                if age > GTFSFeedLoader.MAX_ALERT_AGE_SECONDS:
-                    print(f"  Warning: feed is {age/60:.1f} min old")
-            return feed
-        except Exception as e:
-            print(f"✗ Error loading {parquet_path}: {e}")
-            return None
-
-    @staticmethod
-    def parse_alerts_to_dataframe(feed_dict):
-        from google.transit import gtfs_realtime_pb2
-        alerts_list         = []
-        timestamp_converter = TimestampConverter()
-        text_processor      = TextProcessor()
-
-        for filename, feed in feed_dict.items():
-            feed_timestamp = getattr(feed.header, 'timestamp', None)
-            if feed_timestamp is None:
-                print(f"  Skipping {filename}: No timestamp in header")
-                continue
-            feed_time = timestamp_converter.convert_timestamp_to_local_str(feed_timestamp)
-
-            for entity in getattr(feed, 'entity', []):
-                if not entity.HasField('alert'):
-                    continue
-                alert      = entity.alert
-                alert_info = {
-                    'feed_timestamp':      feed_time,
-                    'alert_id':            getattr(entity, 'id', None),
-                    'cause_id':            alert.cause,
-                    'cause':               gtfs_realtime_pb2.Alert.Cause.Name(alert.cause),
-                    'effect_id':           alert.effect,
-                    'effect':              gtfs_realtime_pb2.Alert.Effect.Name(alert.effect),
-                    'description_text':    text_processor.get_first_translation_text(
-                                               getattr(alert, 'description_text', None)),
-                    'header_text':         text_processor.get_first_translation_text(
-                                               getattr(alert, 'header_text', None)),
-                    'url_text':            text_processor.get_first_translation_text(
-                                               getattr(alert, 'url', None)),
-                    'image_url':           text_processor.get_first_translation_text(
-                                               getattr(alert, 'image', None)),
-                    'informed_entities':   [],
-                    'active_periods':      [],
-                    'active_period_start': None,
-                    'active_period_end':   None,
-                }
-
-                active_periods = getattr(alert, 'active_period', [])
-                all_periods    = []
-                for i, period in enumerate(active_periods):
-                    period_range = timestamp_converter.convert_active_period_range(
-                        period.start if hasattr(period, 'start') and period.start else None,
-                        period.end   if hasattr(period, 'end')   and period.end   else None,
-                    )
-                    all_periods.append(period_range)
-                    if i == 0:
-                        alert_info['active_period_start'] = period_range['start_str']
-                        alert_info['active_period_end']   = period_range['end_str']
-                alert_info['active_periods'] = all_periods
-
-                for informed_entity in getattr(alert, 'informed_entity', []):
-                    entity_details = {
-                        'agency_id':  getattr(informed_entity, 'agency_id',  None),
-                        'route_id':   getattr(informed_entity, 'route_id',   None),
-                        'route_type': getattr(informed_entity, 'route_type', None),
-                        'stop_id':    getattr(informed_entity, 'stop_id',    None),
-                    }
-                    if informed_entity.HasField('trip'):
-                        trip         = informed_entity.trip
-                        trip_details = {}
-                        for attr in ('trip_id','start_time','start_date',
-                                     'schedule_relationship','direction_id'):
-                            if trip.HasField(attr):
-                                trip_details[attr] = getattr(trip, attr)
-                        if trip_details:
-                            entity_details['trip'] = trip_details
-                    alert_info['informed_entities'].append(entity_details)
-
-                alerts_list.append(alert_info)
-
-        if not alerts_list:
-            print(" No alerts found in feeds")
-            return pd.DataFrame()
-
-        result = pd.DataFrame(alerts_list)
-        print(f"✓ Parsed {len(result):,} alerts from {len(feed_dict)} feeds")
-        return result
-
 class RepositoryManager:
     """Manage GitHub repository operations."""
 
@@ -689,9 +576,11 @@ def load_from_parquet() -> tuple:
     print("  Loading service_alerts_*.parquet from cloned repo …")
     parsed_alerts_feeds = {}
     alerts_source = "failed"
+    alerts_df = None
     
     # Check multiple possible locations for the alerts directory
     # Note: Due to Git LFS, parquet files may be in different locations
+    # Updated to include Windows and local paths
     possible_paths = [
         '/content/-detect-and-classify-traffic-disruptions-in-real-time-/alerts',
         '/content/-detect-and-classify-traffic-disruptions-in-real-time-/DB_data',
@@ -702,6 +591,14 @@ def load_from_parquet() -> tuple:
         '/content/alerts',
         '/content/DB_data',
         './DB_data',
+        # Windows and local paths
+        'data',
+        './data',
+        '.\\data',
+        '.\\parquet_data',
+        '.\\parquet_files',
+        os.path.join(os.getcwd(), 'data'),
+        os.path.join(os.getcwd(), 'parquet_data'),
     ]
     
     _alerts_dir = None
@@ -780,13 +677,19 @@ def load_from_parquet() -> tuple:
 
         alerts_source = "parquet"
         print(f"\n  SOURCE: parquet — {len(parsed_alerts_feeds)} feed(s) loaded")
+        
+        # Parse feeds to DataFrame
+        if parsed_alerts_feeds:
+            _loader = GTFSFeedLoader()
+            alerts_df = _loader.parse_alerts_to_dataframe(parsed_alerts_feeds)
+            print(f"  Parsed {len(alerts_df):,} alerts from feeds")
 
     except Exception as _exc:
         alerts_source = "failed"
         print(f"\n  ✗ Parquet load failed: {_exc}")
         print("    → Re-run the cell and choose a different strategy.")
 
-    return None, parsed_alerts_feeds, alerts_source
+    return alerts_df, parsed_alerts_feeds, alerts_source
 
 
 def load_from_gtfs_loader() -> tuple:
