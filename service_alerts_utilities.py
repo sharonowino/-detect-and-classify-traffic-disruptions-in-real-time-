@@ -1,8 +1,3 @@
-"""
-GTFS-RT Alerts Analysis Pipeline
-Fully updated — GitHub parquet loading replaced with DB-first/parquet-fallback loader.
-Loading strategy is chosen interactively at runtime.
-"""
 # ═══════════════════════════════════════════════════════════════════════════════
 # REQUIRED IMPORTS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -14,6 +9,7 @@ import unicodedata
 from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # DATA LOADING — interactive strategy selector
 #
@@ -694,33 +690,56 @@ def load_from_parquet() -> tuple:
     parsed_alerts_feeds = {}
     alerts_source = "failed"
     
+    # Check multiple possible locations for the alerts directory
+    possible_paths = [
+        '/content/-detect-and-classify-traffic-disruptions-in-real-time-/alerts',
+        '/content/-detect-and-classify-traffic-disruptions-in-real-time-/alerts',
+        'alerts',  # local directory
+        './alerts',
+        '/content/alerts',
+    ]
+    
+    _alerts_dir = None
+    for path in possible_paths:
+        if os.path.isdir(path):
+            _alerts_dir = path
+            print(f"  Found alerts directory: {path}")
+            break
+    
+    if _alerts_dir is None:
+        # List what directories exist to help debug
+        print("  Debug - checking available directories:")
+        for check_path in ['/content', '/content/-detect-and-classify-traffic-disruptions-in-real-time-', '.']:
+            if os.path.exists(check_path):
+                items = os.listdir(check_path)[:10]  # First 10 items
+                print(f"    {check_path}: {items}")
+            else:
+                print(f"    {check_path}: NOT FOUND")
+        
+        raise FileNotFoundError(
+            f"Alerts directory not found in any of: {possible_paths}\n"
+            "  Clone the repo with LFS files, or use database strategy instead:\n"
+            "  !git clone https://github.com/sharonowino/-detect-and-classify-traffic-disruptions-in-real-time-\n"
+            "  Or use: load_service_alerts(strategy='database')"
+        )
+
+    # Now search for parquet files in the found directory
+    _parquet_files = sorted([
+        os.path.join(_alerts_dir, f)
+        for f in os.listdir(_alerts_dir)
+        if f.startswith('service_alerts_') 
+        and f.endswith('.parquet')
+        and not f.startswith('.')   # skip hidden/system files
+    ])
+
+    if not _parquet_files:
+        raise FileNotFoundError(
+            f"No service_alerts_*.parquet files found in: {_alerts_dir}"
+        )
+
+    print(f"  Found {len(_parquet_files)} parquet file(s).")
+
     try:
-        _cloned_root  = '/content/-detect-and-classify-traffic-disruptions-in-real-time-'
-        _alerts_dir   = os.path.join(_cloned_root, 'alerts')
-
-        if not os.path.isdir(_alerts_dir):
-            raise FileNotFoundError(
-                f"Alerts directory not found: {_alerts_dir}\n"
-                "  Clone the repo first:\n"
-                "  !git clone https://github.com/sharonowino/"
-                "-detect-and-classify-traffic-disruptions-in-real-time-"
-            )
-
-            _parquet_files = sorted([
-                os.path.join(_alerts_dir, f)
-                for f in os.listdir(_alerts_dir)
-                if f.startswith('service_alerts_') 
-                and f.endswith('.parquet')
-                and not f.startswith('.')   # skip hidden/system files
-            ])
-
-        if not _parquet_files:
-            raise FileNotFoundError(
-                f"No service_alerts_*.parquet files found in: {_alerts_dir}"
-            )
-
-        print(f"  Found {len(_parquet_files)} parquet file(s).")
-
         _loader = GTFSFeedLoader()
         for _fp in _parquet_files:
             # skip broken or missing files
