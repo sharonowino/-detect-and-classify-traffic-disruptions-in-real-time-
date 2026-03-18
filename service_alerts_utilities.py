@@ -765,11 +765,11 @@ def load_from_parquet() -> tuple:
             )
 
        _parquet_files = sorted([
-            os.path.join(_alerts_dir, f)
-            for f in os.listdir(_alerts_dir)
-            if f.startswith('service_alerts_')
-            and f.endswith('.parquet')
-            and not f.startswith('.')   # skip hidden/system files
+           os.path.join(_alerts_dir, f)
+           for f in os.listdir(_alerts_dir)
+           if f.startswith('service_alerts_')
+           and f.endswith('.parquet')
+           and not f.startswith('.')   # skip hidden/system files
         ])
 
         if not _parquet_files:
