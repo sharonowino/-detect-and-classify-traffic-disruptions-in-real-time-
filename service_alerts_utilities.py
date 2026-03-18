@@ -829,15 +829,17 @@ def load_service_alerts(strategy: str = None) -> tuple:
     Main orchestration function for loading service alerts.
     
     Args:
-        strategy: Optional pre-selected strategy. If None, prompts user interactively.
+        strategy: Optional pre-selected strategy. If None, defaults to 'database'.
                   Valid values: 'database', 'parquet', 'gtfs_loader'
-    
+                  
     Returns:
         tuple: (alerts_df, parsed_alerts_feeds, alerts_source)
     """
-    # If no strategy provided, prompt user to choose
+    # If no strategy provided, default to database (most reliable)
     if strategy is None:
-        strategy = choose_loading_strategy()
+        print("No strategy specified, defaulting to 'database' strategy.")
+        print("To use another strategy, pass: strategy='parquet' or strategy='gtfs_loader'")
+        strategy = 'database'
     elif strategy not in VALID_STRATEGIES.values():
         raise ValueError(f"Invalid strategy: {strategy}. Must be one of: {list(VALID_STRATEGIES.values())}")
     
