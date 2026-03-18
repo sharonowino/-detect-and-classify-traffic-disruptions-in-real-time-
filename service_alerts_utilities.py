@@ -583,9 +583,9 @@ def load_from_parquet() -> tuple:
     #   - Colab: /content/-detect-and-classify-traffic-disruptions-in-real-time-/alerts
     #   - GitHub: https://github.com/sharonowino/-detect-and-classify-traffic-disruptions-in-real-time-/tree/main/alert
     possible_paths = [
-        # Colab paths (alerts folder)
+        # Colab paths - CHECK alert (singular) FIRST!
+        '/content/-detect-and-classify-traffic-disruptions-in-real-time-/alert',  # GitHub uses 'alert'
         '/content/-detect-and-classify-traffic-disruptions-in-real-time-/alerts',
-        '/content/-detect-and-classify-traffic-disruptions-in-real-time-/alert',
         # Colab paths (other folders)
         '/content/-detect-and-classify-traffic-disruptions-in-real-time-/DB_data',
         '/content/-detect-and-classify-traffic-disruptions-in-real-time-/nlp_data',
@@ -608,53 +608,52 @@ def load_from_parquet() -> tuple:
         os.path.join(os.getcwd(), 'parquet_data'),
     ]
     
+    # Try to find a directory that actually contains parquet files
+    # The issue is we need to check EACH directory for parquet files, not just take the first one
     _alerts_dir = None
+    _parquet_files = []
+    parquet_patterns = ['service_alerts', 'alerts', 'alert', 'gtfs_rt']
+    
     for path in possible_paths:
         if os.path.isdir(path):
-            _alerts_dir = path
-            print(f"  Found alerts directory: {path}")
-            break
+            # Check if this directory contains any parquet files
+            found = []
+            try:
+                for f in os.listdir(path):
+                    for pattern in parquet_patterns:
+                        if f.startswith(pattern) and f.endswith('.parquet') and not f.startswith('.'):
+                            found.append(os.path.join(path, f))
+                            break
+            except PermissionError:
+                continue
+                
+            if found:
+                _alerts_dir = path
+                _parquet_files = sorted(found)
+                print(f"  Found alerts directory with parquet files: {path}")
+                print(f"  Found {len(_parquet_files)} parquet file(s): {[os.path.basename(f) for f in _parquet_files[:3]]}...")
+                break  # Found valid directory with parquet files
     
     if _alerts_dir is None:
         # List what directories exist to help debug
         print("  Debug - checking available directories:")
         for check_path in ['/content', '/content/-detect-and-classify-traffic-disruptions-in-real-time-', '.']:
             if os.path.exists(check_path):
-                items = os.listdir(check_path)[:10]  # First 10 items
-                print(f"    {check_path}: {items}")
+                try:
+                    items = os.listdir(check_path)[:10]  # First 10 items
+                    print(f"    {check_path}: {items}")
+                except Exception as e:
+                    print(f"    {check_path}: ERROR - {e}")
             else:
                 print(f"    {check_path}: NOT FOUND")
         
         raise FileNotFoundError(
-            f"Alerts directory not found in any of: {possible_paths}\n"
-            "  Clone the repo with LFS files, or use database strategy instead:\n"
+            f"No service_alerts_*.parquet files found in any searched directory.\n"
+            "  Searched paths:\n"
+            + "\n".join([f"    - {p}" for p in possible_paths])
+            "\n  Clone the repo with LFS files, or use database strategy instead:\n"
             "  !git clone https://github.com/sharonowino/-detect-and-classify-traffic-disruptions-in-real-time-\n"
             "  Or use: load_service_alerts(strategy='database')"
-        )
-
-    # Now search for parquet files in the found directory
-    # Look for any parquet files that might contain service alerts
-    # GitHub uses 'alert' (singular), local may use 'alerts' (plural)
-    parquet_patterns = ['service_alerts', 'alerts', 'alert', 'gtfs_rt']  # Try different patterns
-    _parquet_files = []
-    
-    for pattern in parquet_patterns:
-        found = sorted([
-            os.path.join(_alerts_dir, f)
-            for f in os.listdir(_alerts_dir)
-            if f.startswith(pattern) 
-            and f.endswith('.parquet')
-            and not f.startswith('.')
-        ])
-        _parquet_files.extend(found)
-    
-    # Remove duplicates while preserving order
-    seen = set()
-    _parquet_files = [x for x in _parquet_files if not (x in seen or seen.add(x))]
-
-    if not _parquet_files:
-        raise FileNotFoundError(
-            f"No service_alerts_*.parquet files found in: {_alerts_dir}"
         )
 
     print(f"  Found {len(_parquet_files)} parquet file(s).")
