@@ -691,12 +691,17 @@ def load_from_parquet() -> tuple:
     alerts_source = "failed"
     
     # Check multiple possible locations for the alerts directory
+    # Note: Due to Git LFS, parquet files may be in different locations
     possible_paths = [
         '/content/-detect-and-classify-traffic-disruptions-in-real-time-/alerts',
-        '/content/-detect-and-classify-traffic-disruptions-in-real-time-/alerts',
+        '/content/-detect-and-classify-traffic-disruptions-in-real-time-/DB_data',
+        '/content/-detect-and-classify-traffic-disruptions-in-real-time-/nlp_data',
+        '/content/-detect-and-classify-traffic-disruptions-in-real-time-/data',
         'alerts',  # local directory
         './alerts',
         '/content/alerts',
+        '/content/DB_data',
+        './DB_data',
     ]
     
     _alerts_dir = None
@@ -724,13 +729,23 @@ def load_from_parquet() -> tuple:
         )
 
     # Now search for parquet files in the found directory
-    _parquet_files = sorted([
-        os.path.join(_alerts_dir, f)
-        for f in os.listdir(_alerts_dir)
-        if f.startswith('service_alerts_') 
-        and f.endswith('.parquet')
-        and not f.startswith('.')   # skip hidden/system files
-    ])
+    # Look for any parquet files that might contain service alerts
+    parquet_patterns = ['service_alerts', 'alerts', 'gtfs_rt']  # Try different patterns
+    _parquet_files = []
+    
+    for pattern in parquet_patterns:
+        found = sorted([
+            os.path.join(_alerts_dir, f)
+            for f in os.listdir(_alerts_dir)
+            if f.startswith(pattern) 
+            and f.endswith('.parquet')
+            and not f.startswith('.')
+        ])
+        _parquet_files.extend(found)
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    _parquet_files = [x for x in _parquet_files if not (x in seen or seen.add(x))]
 
     if not _parquet_files:
         raise FileNotFoundError(
