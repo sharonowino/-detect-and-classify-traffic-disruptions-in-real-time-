@@ -3,7 +3,17 @@ GTFS-RT Alerts Analysis Pipeline
 Fully updated — GitHub parquet loading replaced with DB-first/parquet-fallback loader.
 Loading strategy is chosen interactively at runtime.
 """
-
+# ═══════════════════════════════════════════════════════════════════════════════
+# REQUIRED IMPORTS
+# ═══════════════════════════════════════════════════════════════════════════════
+import os
+import re
+import time
+import hashlib
+import unicodedata
+from typing import Dict, List, Optional, Tuple
+import numpy as np
+import pandas as pd
 # ═══════════════════════════════════════════════════════════════════════════════
 # DATA LOADING — interactive strategy selector
 #
