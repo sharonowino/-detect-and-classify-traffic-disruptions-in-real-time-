@@ -764,10 +764,12 @@ def load_from_parquet() -> tuple:
                 "-detect-and-classify-traffic-disruptions-in-real-time-"
             )
 
-        _parquet_files = sorted([
+       _parquet_files = sorted([
             os.path.join(_alerts_dir, f)
             for f in os.listdir(_alerts_dir)
-            if f.startswith('service_alerts_') and f.endswith('.parquet')
+            if f.startswith('service_alerts_')
+            and f.endswith('.parquet')
+            and not f.startswith('.')   # skip hidden/system files
         ])
 
         if not _parquet_files:
@@ -779,9 +781,15 @@ def load_from_parquet() -> tuple:
 
         _loader = GTFSFeedLoader()
         for _fp in _parquet_files:
+            # skip broken or missing files
+            if not os.path.exists(_fp):
+                print(f"  Missing file: {os.path.basename(_fp)}")
+                continue
+
             if os.path.getsize(_fp) == 0:
                 print(f"  Skipping zero-byte: {os.path.basename(_fp)}")
                 continue
+
             _feed = _loader.load_gtfs_feed(_fp)
             if _feed:
                 parsed_alerts_feeds[_fp] = _feed
@@ -893,8 +901,7 @@ def load_service_alerts(strategy: str = None) -> tuple:
             "  Fix the error above and re-run."
         )
 
-    return alerts_df, parsed_alerts_feeds, alerts_source
-
+    return alerts_df, parsed_alerts_feeds, alerts_source = load_service_alerts("parquet")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LEGACY CODE — Kept for backward compatibility
