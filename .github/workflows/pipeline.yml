@@ -1,8 +1,8 @@
 name: Transit Sentinel GTFS Pipeline
 
 on:
-  schedule:
-    - cron: "0 * * * *"   # Runs every hour
+  # schedule:
+  #   - cron: "0 * * * *"   # Runs every hour
   workflow_dispatch:       # Allows manual run
 
 jobs:
